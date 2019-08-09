@@ -12,13 +12,11 @@ AWS-Syncer is a CLI tool that assists with the following processes in AWS:
 
 import boto3
 import click
-import mimetypes
 
-from botocore.exceptions import ClientError
-from pathlib import Path
+from bucket import BucketManager
 
 session = boto3.Session(profile_name='kosta')
-s3 = session.resource('s3')
+bucket_manager = BucketManager(session)
 
 @click.group()
 def cli():
@@ -28,14 +26,14 @@ def cli():
 @cli.command('list-buckets')
 def list_buckets():
   """List all S3 buckets."""
-  for bucket in s3.buckets.all():
+  for bucket in bucket_manager.all_buckets():
     print(bucket)
 
 @cli.command('list-bucket-objects')
 @click.argument('bucket')
 def list_bucket_objects(bucket):
   """List objects in an S3 bucket."""
-  for obj in s3.Bucket(bucket).objects.all():
+  for obj in bucket_manager.all_objects(bucket):
     print(obj)
 
 @cli.command('setup-bucket')
@@ -44,34 +42,12 @@ def setup_bucket(bucket):
   """Create and configure S3 bucket."""
   pass
 
-def upload_file(s3_bucket, path, key):
-  """Upload path to s3_bucket at key."""
-  content_type = mimetypes.guess_type(key)[0] or 'text/plain'
-  s3_bucket.upload_file(
-    path,
-    key,
-    ExtraArgs={
-      'ContentType': content_type
-    }
-  )
-
 @cli.command('sync')
 @click.argument('pathname', type=click.Path(exists=True))
 @click.argument('bucket')
 def sync(pathname, bucket):
   "Sync contents of PATHNAME to BUCKET."
-  s3_bucket = s3.Bucket(bucket)
-
-  root = Path(pathname).expanduser().resolve()
-
-  def handle_directory(target):
-			for path in target.iterdir():
-				if path.is_dir(): handle_directory(path)
-				if path.is_file():
-          print("Path: {}\n Key: {}".format(path, path.relative_to(root)))
-          upload_file(s3_bucket, str(path), str(path.relative_to(root)))
-
-  handle_directory(root)
+  bucket_manager.sync(pathname, bucket)
 
 if __name__ == '__main__':
   cli()
