@@ -1,3 +1,15 @@
+# -*- coding: utf-8 -*-
+
+"""
+AWS-Syncer: Syncs directories to AWS.
+
+AWS-Syncer is a CLI tool that assists with the following processes in AWS:
+-List S3 buckets
+-List contents of an S3 bucket
+-Create an S3 bucket
+-Sync directory tree and its contents to an S3 bucket
+"""
+
 import boto3
 import click
 import mimetypes
@@ -33,12 +45,13 @@ def setup_bucket(bucket):
   pass
 
 def upload_file(s3_bucket, path, key):
+  """Upload path to s3_bucket at key."""
   content_type = mimetypes.guess_type(key)[0] or 'text/plain'
   s3_bucket.upload_file(
     path,
     key,
     ExtraArgs={
-      'ContentType': 'text/html'
+      'ContentType': content_type
     }
   )
 
@@ -54,9 +67,9 @@ def sync(pathname, bucket):
   def handle_directory(target):
 			for path in target.iterdir():
 				if path.is_dir(): handle_directory(path)
-				if path.is_file(): upload_file(s3_bucket, str(path), str(path.relative_to(root)))
-
-          #print("Path: {}\n Key: {}".format(path, path.relative_to(root)))
+				if path.is_file():
+          print("Path: {}\n Key: {}".format(path, path.relative_to(root)))
+          upload_file(s3_bucket, str(path), str(path.relative_to(root)))
 
   handle_directory(root)
 
