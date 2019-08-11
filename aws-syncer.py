@@ -15,13 +15,21 @@ import click
 
 from bucket import BucketManager
 
-session = boto3.Session(profile_name='kosta')
-bucket_manager = BucketManager(session)
+session = None
+bucket_manager = None
 
 @click.group()
-def cli():
+@click.option('--profile', default='kosta', help="AWS profile to use.")
+def cli(profile):
   """AWS-Syncer syncs directories to AWS."""
-  pass
+  global session, bucket_manager
+
+  session_cfg = {}
+  if profile:
+    session_cfg['profile_name'] = profile
+
+  session = boto3.Session(**session_cfg)
+  bucket_manager = BucketManager(session)
 
 @cli.command('list-buckets')
 def list_buckets():
