@@ -12,6 +12,7 @@ class BucketManager:
   """Manage an S3 bucket."""
 
   def __init__(self, session):
+    self.session = session
     self.s3 = session.resource('s3')
 
   def all_buckets(self):
@@ -22,8 +23,32 @@ class BucketManager:
     """Get an iterator for all objects in the bucket."""
     return self.s3.Bucket(bucket).objects.all()
 
+  def init_bucket(self, bucket_name):
+    """Create new bucket, or return existing one"""
+    s3_bucket = None
+    try:
+      if self.session.region_name == 'us-east-1':
+        s3_bucket = self.s3.create_bucket(
+          Bucket=bucket_name
+        )
+      else:
+        s3_bucket = self.s3.create_bucket(
+          Bucket=bucket_name,
+          CreateBucketConfiguration={'LocationConstraint': self.session.region_name}
+        )
+    except ClientError as error:
+      if error.response['Error']['Code'] == 'BucketAlreadyOwnedByYou':
+        print("You already own this S3 bucket.")
+        #s3_bucket = self.s3.Bucket(bucket_name)
+      elif error.response['Error']['Code'] == 'BucketAlreadyExists':
+        print("The S3 bucket name is not available.")
+      else:
+        raise error
+
+    return s3_bucket
+
   def upload_file(self, bucket, path, key):
-    """Upload path to s3_bucket at key."""
+    """Upload path to S3 bucket at key."""
     content_type = mimetypes.guess_type(key)[0] or 'text/plain'
     return bucket.upload_file(
       path,

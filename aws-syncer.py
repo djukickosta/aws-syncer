@@ -44,11 +44,11 @@ def list_bucket_objects(bucket):
   for obj in bucket_manager.all_objects(bucket):
     print(obj)
 
-@cli.command('setup-bucket')
+@cli.command('create-bucket')
 @click.argument('bucket')
 def setup_bucket(bucket):
-  """Create and configure S3 bucket."""
-  pass
+  """Create an S3 bucket."""
+  s3_bucket = bucket_manager.init_bucket(bucket)
 
 @cli.command('sync')
 @click.argument('pathname', type=click.Path(exists=True))
