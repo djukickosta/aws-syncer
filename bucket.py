@@ -6,15 +6,22 @@ import boto3
 import mimetypes
 
 from botocore.exceptions import ClientError
+from functools import reduce
 from hashlib import md5
 from pathlib import Path
 
 class BucketManager:
   """Manage an S3 bucket."""
 
+  CHUNK_SIZE = 8 * 1024 * 1024
+
   def __init__(self, session):
     self.session = session
     self.s3 = session.resource('s3')
+    self.transfer_config = boto3.s3.transfer.TransferConfig(
+			multipart_chunksize = self.CHUNK_SIZE,
+			multipart_threshold = self.CHUNK_SIZE
+		)
 
     self.manifest = {}
 
@@ -67,19 +74,32 @@ class BucketManager:
 
   def generate_etag(self, path):
     """Generate ETag for file to upload."""
-    hash = None
+    hashes = []
 
     with open(path, 'rb') as f:
-      data = f.read()
-      hash = self.hash_data(data)
+      while True:
+        data = f.read(self.CHUNK_SIZE)
 
-      return '"{}"'.format(hash.hexdigest())
+        if not data:
+          break
+
+        hashes.append(self.hash_data(data))
+
+    if not hashes:
+      print("Not hashes")
+      return
+    elif len(hashes) == 1:
+      return '"{}"'.format(hashes[0].hexdigest())
+    else:
+      digests = (h.digest() for h in hashes)
+      hash = self.hash_data(reduce(lambda x, y: x + y, digests))
+      return '"{}-{}"'.format(hash.hexdigest(), len(hashes))
 
   def upload_file(self, bucket, path, key):
     """Upload path to S3 bucket at key."""
     content_type = mimetypes.guess_type(key)[0] or 'text/plain'
-    etag = self.generate_etag(path)
 
+    etag = self.generate_etag(path)
     if self.manifest.get(key, '') == etag:
       print("Skipping {}, etags match".format(key))
       return
@@ -89,7 +109,8 @@ class BucketManager:
       key,
       ExtraArgs={
         'ContentType': content_type
-      }
+      },
+      Config=self.transfer_config
     )
 
   def sync(self, pathname, bucket_name):
@@ -101,7 +122,8 @@ class BucketManager:
 
     def handle_directory(target):
       for path in target.iterdir():
-        if path.is_dir(): handle_directory(path)
+        if path.is_dir():
+          handle_directory(path)
         if path.is_file():
           print("Path: {}\n Key: {}".format(path, path.relative_to(root)))
           self.upload_file(bucket, str(path), str(path.relative_to(root)))
