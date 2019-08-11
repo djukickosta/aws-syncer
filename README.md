@@ -9,5 +9,5 @@ AWS-Syncer currently has the following features:
 - List S3 buckets.
 - List contents of an S3 bucket.
 - Create an S3 bucket.
-- Sync directory tree to S3 bucket
+- Sync directory tree to S3 bucket. Supports multipart upload and utilizes ETags to skip identical files during upload.
 - Set AWS profile with --profile=<profileName>
