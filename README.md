@@ -9,3 +9,4 @@ AWS-Syncer currently has the following features:
 - List S3 buckets.
 - List contents of an S3 bucket.
 - Sync directory tree to S3 bucket
+- Set AWS profile with --profile=<profileName>
