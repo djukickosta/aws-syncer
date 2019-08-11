@@ -6,6 +6,7 @@ import boto3
 import mimetypes
 
 from botocore.exceptions import ClientError
+from hashlib import md5
 from pathlib import Path
 
 class BucketManager:
@@ -14,6 +15,8 @@ class BucketManager:
   def __init__(self, session):
     self.session = session
     self.s3 = session.resource('s3')
+
+    self.manifest = {}
 
   def all_buckets(self):
     """Get an iterator for all buckets."""
@@ -47,9 +50,40 @@ class BucketManager:
 
     return s3_bucket
 
+  def load_manifest(self, bucket):
+    """Load manifest for caching purposes."""
+    paginator = self.s3.meta.client.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=bucket.name):
+      for obj in page.get('Contents', []):
+        self.manifest[obj['Key']] = obj['ETag']
+
+  @staticmethod
+  def hash_data(data):
+    """Generate md5 hash for data."""
+    hash = md5()
+    hash.update(data)
+
+    return hash
+
+  def generate_etag(self, path):
+    """Generate ETag for file to upload."""
+    hash = None
+
+    with open(path, 'rb') as f:
+      data = f.read()
+      hash = self.hash_data(data)
+
+      return '"{}"'.format(hash.hexdigest())
+
   def upload_file(self, bucket, path, key):
     """Upload path to S3 bucket at key."""
     content_type = mimetypes.guess_type(key)[0] or 'text/plain'
+    etag = self.generate_etag(path)
+
+    if self.manifest.get(key, '') == etag:
+      print("Skipping {}, etags match".format(key))
+      return
+
     return bucket.upload_file(
       path,
       key,
@@ -61,6 +95,7 @@ class BucketManager:
   def sync(self, pathname, bucket_name):
     """Sync contents of path to bucket."""
     bucket = self.s3.Bucket(bucket_name)
+    self.load_manifest(bucket)
 
     root = Path(pathname).expanduser().resolve()
 
