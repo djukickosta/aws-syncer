@@ -14,6 +14,7 @@ class BucketManager:
   """Manage an S3 bucket."""
 
   CHUNK_SIZE = 8 * 1024 * 1024
+  found_keys = []
 
   def __init__(self, session):
     self.session = session
@@ -86,8 +87,7 @@ class BucketManager:
         hashes.append(self.hash_data(data))
 
     if not hashes:
-      print("Not hashes")
-      return
+      return '"{}"'.format(self.hash_data(data).hexdigest())
     elif len(hashes) == 1:
       return '"{}"'.format(hashes[0].hexdigest())
     else:
@@ -98,6 +98,7 @@ class BucketManager:
   def upload_file(self, bucket, path, key):
     """Upload path to S3 bucket at key."""
     content_type = mimetypes.guess_type(key)[0] or 'text/plain'
+    self.found_keys.append(key)
 
     etag = self.generate_etag(path)
     if self.manifest.get(key, '') == etag:
@@ -129,3 +130,11 @@ class BucketManager:
           self.upload_file(bucket, str(path), str(path.relative_to(root)))
 
     handle_directory(root)
+
+    def compare_manifest():
+      """Check if files in S3 bucket are missing in local directory."""
+      for obj in self.manifest.items():
+        if obj[0] not in self.found_keys:
+          print("Warning,", '"{}"'.format(obj[0]), "no longer exists in local directory.")
+
+    compare_manifest()
